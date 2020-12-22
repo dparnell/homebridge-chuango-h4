@@ -1,16 +1,16 @@
 {
-  "private": true,
-  "displayName": "Plugin Name",
-  "name": "homebridge-plugin-name",
+  "private": false,
+  "displayName": "Homebridge Chuango H4 Plugin",
+  "name": "homebridge-chuango-h4",
   "version": "1.0.0",
-  "description": "A short description about what your plugin does.",
+  "description": "A homebridge plugin for the Chuango H4 home security system.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "git://github.com/dparnell/homebridge-chuango-h4.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/dparnell/homebridge-chuango-h4/issues"
   },
   "engines": {
     "node": ">=10.17.0",
@@ -19,14 +19,20 @@
   "main": "dist/index.js",
   "scripts": {
     "lint": "eslint src/**.ts --max-warnings=0",
-    "watch": "npm run build && npm link && nodemon",
+    "watch": "yarn run build && yarn link && nodemon",
     "build": "rimraf ./dist && tsc",
-    "prepublishOnly": "npm run lint && npm run build"
+    "prepublishOnly": "yarn run lint && yarn run build"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "chuango",
+    "h4",
+    "security",
+    "alarm"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "chuango-h4-client": "^1.0.0"
+  },
   "devDependencies": {
     "@types/node": "^14.14.6",
     "@typescript-eslint/eslint-plugin": "^4.6.1",

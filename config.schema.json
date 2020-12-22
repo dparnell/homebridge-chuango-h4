@@ -1,16 +1,29 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
-  "pluginType": "platform",
-  "singular": true,
-  "schema": {
-    "type": "object",
-    "properties": {
-      "name": {
-        "title": "Name",
-        "type": "string",
-        "required": true,
-        "default": "Example Dynamic Platform"
-      }
+    "pluginAlias": "ChuangoH4HomebridgePlugin",
+    "pluginType": "platform",
+    "singular": true,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "username": {
+                "title": "Username",
+                "type": "string",
+                "required": true,
+                "placeholder": "user@example.com"
+            },
+            "password": {
+                "title": "Password",
+                "type": "string",
+                "required": true
+            },
+            "guid": {
+                "title": "GUID",
+                "type": "string",
+                "required": true,
+                "placeholder": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+                "description": "A GUID that uniquely describes this insallation. See https://guidgenerator.com or use any other GUID generator you so desire"
+            }
+
+        }
     }
-  }
 }
