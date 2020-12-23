@@ -20,7 +20,7 @@ export class ChuangoH4HomebridgePlatform implements DynamicPlatformPlugin {
         this.log.debug('Finished initializing platform Chuango H4');
 
         this.api.on('didFinishLaunching', () => {
-            this.log.info("Logging in...");
+            this.log.info('Logging in...');
 
             Client.login(this.config.username as string, this.config.password as string, this.config.guid as string).then((client: Client) => {
                 this.log.info('Login successful');
@@ -40,7 +40,7 @@ export class ChuangoH4HomebridgePlatform implements DynamicPlatformPlugin {
 
     exploreDevice(client: Client, device: DeviceInfo) {
         client.connect(device).then((connection: DeviceConnection) => {
-            this.log.info("Connected to device " + device.deviceID);
+            this.log.info('Connected to device ' + device.deviceID);
 
             const uuid = this.api.hap.uuid.generate(device.deviceID);
             const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
@@ -52,14 +52,13 @@ export class ChuangoH4HomebridgePlatform implements DynamicPlatformPlugin {
                 this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
             }
         });
-
     }
 
     discoverDevices(client: Client) {
-        this.log.info("Discovering chuango devices...");
+        this.log.info('Discovering chuango devices...');
         client.listDevices().then((devices: DeviceInfo[]) => {
             for(const device of devices) {
-                this.log.info("Found device " + device.deviceID + " connecting...");
+                this.log.info('Found device ' + device.deviceID + ' connecting...');
                 this.exploreDevice(client, device);
             }
         });

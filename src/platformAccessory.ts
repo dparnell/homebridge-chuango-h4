@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory, CharacteristicValue, CharacteristicSetCallback, CharacteristicGetCallback } from 'homebridge';
+import { Service, PlatformAccessory } from 'homebridge';
 
 import { ChuangoH4HomebridgePlatform } from './platform';
 
@@ -11,13 +11,13 @@ import { DeviceConnection, AlarmState, ArmState, Device, Alarm, ItemEventType } 
  */
 export class ChuangoH4PlatformAccessory {
     private service: Service;
-    private targetState: any;
+    private targetState = 0;
     private detectors: any = {};
 
     constructor(
         private readonly platform: ChuangoH4HomebridgePlatform,
         private readonly accessory: PlatformAccessory,
-        private readonly connection: DeviceConnection
+        private readonly connection: DeviceConnection,
     ) {
 
         // set accessory information
@@ -27,7 +27,7 @@ export class ChuangoH4PlatformAccessory {
 
         this.service = this.accessory.getService(this.platform.Service.SecuritySystem) || this.accessory.addService(this.platform.Service.SecuritySystem);
 
-        this.service.setCharacteristic(this.platform.Characteristic.Name, "H4");
+        this.service.setCharacteristic(this.platform.Characteristic.Name, 'H4');
 
         // create handlers for required characteristics
         this.service.getCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState)
@@ -37,20 +37,20 @@ export class ChuangoH4PlatformAccessory {
             .on('get', this.handleSecuritySystemTargetStateGet.bind(this))
             .on('set', this.handleSecuritySystemTargetStateSet.bind(this));
 
-        this.connection.on("alarm", (alarm: Alarm) => {
-            this.platform.log.info("Got alarm: " + JSON.stringify(alarm));
+        this.connection.on('alarm', (alarm: Alarm) => {
+            this.platform.log.info('Got alarm: ' + JSON.stringify(alarm));
 
-            if(alarm.itemEvent == ItemEventType.Alarm || alarm.itemEvent == ItemEventType.AbnormalEvent || alarm.itemEvent == ItemEventType.SOSAlarm) {
+            if(alarm.itemEvent === ItemEventType.Alarm || alarm.itemEvent === ItemEventType.AbnormalEvent || alarm.itemEvent === ItemEventType.SOSAlarm) {
                 this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, this.platform.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED);
 
                 const detector = this.detectors[alarm.deviceID];
                 if(detector) {
                     const node = detector.device.NodesList[0];
                     switch(node.FuncType) {
-                        case "SS":
+                        case 'SS':
                             detector.service.setCharacteristic(this.platform.Characteristic.MotionDetected, true);
                             break;
-                        case "OD":
+                        case 'OD':
                             detector.service.setCharacteristic(this.platform.Characteristic.ContactSensorState, true);
                             break;
                     }
@@ -58,8 +58,8 @@ export class ChuangoH4PlatformAccessory {
             }
         });
 
-        this.connection.on("state", (state: AlarmState) => {
-            this.platform.log.info("Alarm state changed: " + JSON.stringify(state));
+        this.connection.on('state', (state: AlarmState) => {
+            this.platform.log.info('Alarm state changed: ' + JSON.stringify(state));
 
             const newState = this.alarmStateToHomebridge(state);
             this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, newState);
@@ -77,10 +77,10 @@ export class ChuangoH4PlatformAccessory {
                     // homebridge does not know about this service, so we need to build it
                     const node = device.NodesList[0];
                     switch(node.FuncType) {
-                        case "SS":
+                        case 'SS':
                             acc = this.accessory.addService(this.platform.Service.MotionSensor, device.DevName.trim(), node.UUID);
                             break;
-                        case "OD":
+                        case 'OD':
                             acc = this.accessory.addService(this.platform.Service.ContactSensor, device.DevName.trim(), node.UUID);
                             break;
                     }
@@ -92,7 +92,7 @@ export class ChuangoH4PlatformAccessory {
                     this.detectors[device.DevId] = { device: device, service: acc };
                 }
             }
-            // this.platform.log.info("Connected devices:\n", JSON.stringify(devices, null, 2));
+            // this.platform.log.info('Connected devices:\n', JSON.stringify(devices, null, 2));
         });
     }
 
@@ -109,7 +109,7 @@ export class ChuangoH4PlatformAccessory {
 
 
     /**
-     * Handle requests to get the current value of the "Security System Target State" characteristic
+     * Handle requests to get the current value of the 'Security System Target State' characteristic
      */
     handleSecuritySystemTargetStateGet(callback) {
         this.platform.log.debug('Triggered GET SecuritySystemTargetState');
@@ -118,11 +118,11 @@ export class ChuangoH4PlatformAccessory {
     }
 
     /**
-     * Handle requests to set the "Security System Target State" characteristic
+     * Handle requests to set the 'Security System Target State' characteristic
      */
     handleSecuritySystemTargetStateSet(value, callback) {
         this.platform.log.debug('Triggered SET SecuritySystemTargetState:', value);
-        if(this.targetState != value) {
+        if(this.targetState !== value) {
             this.targetState = value;
 
             const newState = this.homebridgeStateToArmState(value);
@@ -167,7 +167,7 @@ export class ChuangoH4PlatformAccessory {
         }
 
         // this should never happen
-        throw "Invalid alarm state encountered: " + JSON.stringify(state);
+        throw 'Invalid alarm state encountered: ' + JSON.stringify(state);
     }
 
 
