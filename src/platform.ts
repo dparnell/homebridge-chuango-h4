@@ -58,7 +58,7 @@ export class ChuangoH4HomebridgePlatform implements DynamicPlatformPlugin {
     discoverDevices(client: Client) {
         this.log.info("Discovering chuango devices...");
         client.listDevices().then((devices: DeviceInfo[]) => {
-            for(let device of devices) {
+            for(const device of devices) {
                 this.log.info("Found device " + device.deviceID + " connecting...");
                 this.exploreDevice(client, device);
             }

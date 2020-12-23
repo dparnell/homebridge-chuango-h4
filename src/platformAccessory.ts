@@ -38,12 +38,14 @@ export class ChuangoH4PlatformAccessory {
             .on('set', this.handleSecuritySystemTargetStateSet.bind(this));
 
         this.connection.on("alarm", (alarm: Alarm) => {
+            this.platform.log.info("Got alarm: " + JSON.stringify(alarm));
+
             if(alarm.itemEvent == ItemEventType.Alarm || alarm.itemEvent == ItemEventType.AbnormalEvent || alarm.itemEvent == ItemEventType.SOSAlarm) {
                 this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, this.platform.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED);
 
-                let detector = this.detectors[alarm.deviceID];
+                const detector = this.detectors[alarm.deviceID];
                 if(detector) {
-                    let node = detector.device.NodesList[0];
+                    const node = detector.device.NodesList[0];
                     switch(node.FuncType) {
                         case "SS":
                             detector.service.setCharacteristic(this.platform.Characteristic.MotionDetected, true);
@@ -57,7 +59,9 @@ export class ChuangoH4PlatformAccessory {
         });
 
         this.connection.on("state", (state: AlarmState) => {
-            let newState = this.alarmStateToHomebridge(state);
+            this.platform.log.info("Alarm state changed: " + JSON.stringify(state));
+
+            const newState = this.alarmStateToHomebridge(state);
             this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, newState);
             if(!state.Alarm) {
                 this.targetState = newState;
@@ -67,11 +71,11 @@ export class ChuangoH4PlatformAccessory {
 
 
         this.connection.getAllDevices().then((devices: Device[]) => {
-            for(let device of devices) {
+            for(const device of devices) {
                 let acc = this.accessory.getService(device.DevName.trim());
                 if(!acc) {
                     // homebridge does not know about this service, so we need to build it
-                    let node = device.NodesList[0];
+                    const node = device.NodesList[0];
                     switch(node.FuncType) {
                         case "SS":
                             acc = this.accessory.addService(this.platform.Service.MotionSensor, device.DevName.trim(), node.UUID);
@@ -94,10 +98,10 @@ export class ChuangoH4PlatformAccessory {
 
 
     handleSecuritySystemCurrentStateGet(callback) {
-        this.platform.log.info('Triggered GET SecuritySystemCurrentState');
+        this.platform.log.debug('Triggered GET SecuritySystemCurrentState');
 
         this.connection.getCurrentAlarmState().then((state: AlarmState) => {
-            var currentValue = this.alarmStateToHomebridge(state);
+            const currentValue = this.alarmStateToHomebridge(state);
 
             callback(null, currentValue);
         });
@@ -108,7 +112,7 @@ export class ChuangoH4PlatformAccessory {
      * Handle requests to get the current value of the "Security System Target State" characteristic
      */
     handleSecuritySystemTargetStateGet(callback) {
-        this.platform.log.info('Triggered GET SecuritySystemTargetState');
+        this.platform.log.debug('Triggered GET SecuritySystemTargetState');
 
         callback(null, this.targetState);
     }
@@ -117,11 +121,11 @@ export class ChuangoH4PlatformAccessory {
      * Handle requests to set the "Security System Target State" characteristic
      */
     handleSecuritySystemTargetStateSet(value, callback) {
-        this.platform.log.info('Triggered SET SecuritySystemTargetState:', value);
+        this.platform.log.debug('Triggered SET SecuritySystemTargetState:', value);
         if(this.targetState != value) {
             this.targetState = value;
 
-            var newState = this.homebridgeStateToArmState(value);
+            const newState = this.homebridgeStateToArmState(value);
 
             if(newState) {
                 this.connection.setAlarmState(newState);
