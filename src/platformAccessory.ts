@@ -1,151 +1,170 @@
 import { Service, PlatformAccessory, CharacteristicValue, CharacteristicSetCallback, CharacteristicGetCallback } from 'homebridge';
 
-import { ExampleHomebridgePlatform } from './platform';
+import { ChuangoH4HomebridgePlatform } from './platform';
+
+import { DeviceConnection, AlarmState, ArmState, Device, Alarm, ItemEventType } from 'chuango-h4-client';
 
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
  * Each accessory may expose multiple services of different service types.
  */
-export class ExamplePlatformAccessory {
-  private service: Service;
+export class ChuangoH4PlatformAccessory {
+    private service: Service;
+    private targetState: any;
+    private detectors: any = {};
 
-  /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
-   */
-  private exampleStates = {
-    On: false,
-    Brightness: 100,
-  };
+    constructor(
+        private readonly platform: ChuangoH4HomebridgePlatform,
+        private readonly accessory: PlatformAccessory,
+        private readonly connection: DeviceConnection
+    ) {
 
-  constructor(
-    private readonly platform: ExampleHomebridgePlatform,
-    private readonly accessory: PlatformAccessory,
-  ) {
+        // set accessory information
+        this.accessory.getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Chuango')
+      .setCharacteristic(this.platform.Characteristic.Model, 'H4');
 
-    // set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
+        this.service = this.accessory.getService(this.platform.Service.SecuritySystem) || this.accessory.addService(this.platform.Service.SecuritySystem);
 
-    // get the LightBulb service if it exists, otherwise create a new LightBulb service
-    // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
+        this.service.setCharacteristic(this.platform.Characteristic.Name, "H4");
 
-    // set the service name, this is what is displayed as the default name on the Home app
-    // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+        // create handlers for required characteristics
+        this.service.getCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState)
+            .on('get', this.handleSecuritySystemCurrentStateGet.bind(this));
 
-    // each service must implement at-minimum the "required characteristics" for the given service type
-    // see https://developers.homebridge.io/#/service/Lightbulb
+        this.service.getCharacteristic(this.platform.Characteristic.SecuritySystemTargetState)
+            .on('get', this.handleSecuritySystemTargetStateGet.bind(this))
+            .on('set', this.handleSecuritySystemTargetStateSet.bind(this));
 
-    // register handlers for the On/Off Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.On)
-      .on('set', this.setOn.bind(this))                // SET - bind to the `setOn` method below
-      .on('get', this.getOn.bind(this));               // GET - bind to the `getOn` method below
+        this.connection.on("alarm", (alarm: Alarm) => {
+            if(alarm.itemEvent == ItemEventType.Alarm || alarm.itemEvent == ItemEventType.AbnormalEvent || alarm.itemEvent == ItemEventType.SOSAlarm) {
+                this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, this.platform.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED);
 
-    // register handlers for the Brightness Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .on('set', this.setBrightness.bind(this));       // SET - bind to the 'setBrightness` method below
+                let detector = this.detectors[alarm.deviceID];
+                if(detector) {
+                    let node = detector.device.NodesList[0];
+                    switch(node.FuncType) {
+                        case "SS":
+                            detector.service.setCharacteristic(this.platform.Characteristic.MotionDetected, true);
+                            break;
+                        case "OD":
+                            detector.service.setCharacteristic(this.platform.Characteristic.ContactSensorState, true);
+                            break;
+                    }
+                }
+            }
+        });
+
+        this.connection.on("state", (state: AlarmState) => {
+            let newState = this.alarmStateToHomebridge(state);
+            this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, newState);
+            if(!state.Alarm) {
+                this.targetState = newState;
+                this.service.setCharacteristic(this.platform.Characteristic.SecuritySystemTargetState, newState);
+            }
+        });
+
+
+        this.connection.getAllDevices().then((devices: Device[]) => {
+            for(let device of devices) {
+                let acc = this.accessory.getService(device.DevName.trim());
+                if(!acc) {
+                    // homebridge does not know about this service, so we need to build it
+                    let node = device.NodesList[0];
+                    switch(node.FuncType) {
+                        case "SS":
+                            acc = this.accessory.addService(this.platform.Service.MotionSensor, device.DevName.trim(), node.UUID);
+                            break;
+                        case "OD":
+                            acc = this.accessory.addService(this.platform.Service.ContactSensor, device.DevName.trim(), node.UUID);
+                            break;
+                    }
+
+                }
+
+                if(acc) {
+                    // save off the device service for later
+                    this.detectors[device.DevId] = { device: device, service: acc };
+                }
+            }
+            // this.platform.log.info("Connected devices:\n", JSON.stringify(devices, null, 2));
+        });
+    }
+
+
+    handleSecuritySystemCurrentStateGet(callback) {
+        this.platform.log.info('Triggered GET SecuritySystemCurrentState');
+
+        this.connection.getCurrentAlarmState().then((state: AlarmState) => {
+            var currentValue = this.alarmStateToHomebridge(state);
+
+            callback(null, currentValue);
+        });
+    }
 
 
     /**
-     * Creating multiple services of the same type.
-     * 
-     * To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
-     * when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
-     * this.accessory.getService('NAME') || this.accessory.addService(this.platform.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
-     * 
-     * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
-     * can use the same sub type id.)
+     * Handle requests to get the current value of the "Security System Target State" characteristic
      */
+    handleSecuritySystemTargetStateGet(callback) {
+        this.platform.log.info('Triggered GET SecuritySystemTargetState');
 
-    // Example: add two "motion sensor" services to the accessory
-    const motionSensorOneService = this.accessory.getService('Motion Sensor One Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
-
-    const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
+        callback(null, this.targetState);
+    }
 
     /**
-     * Updating characteristics values asynchronously.
-     * 
-     * Example showing how to update the state of a Characteristic asynchronously instead
-     * of using the `on('get')` handlers.
-     * Here we change update the motion sensor trigger states on and off every 10 seconds
-     * the `updateCharacteristic` method.
-     * 
+     * Handle requests to set the "Security System Target State" characteristic
      */
-    let motionDetected = false;
-    setInterval(() => {
-      // EXAMPLE - inverse the trigger
-      motionDetected = !motionDetected;
+    handleSecuritySystemTargetStateSet(value, callback) {
+        this.platform.log.info('Triggered SET SecuritySystemTargetState:', value);
+        if(this.targetState != value) {
+            this.targetState = value;
 
-      // push the new value to HomeKit
-      motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-      motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
+            var newState = this.homebridgeStateToArmState(value);
 
-      this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-      this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
-    }, 10000);
-  }
+            if(newState) {
+                this.connection.setAlarmState(newState);
+            }
+        }
 
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
-   */
-  setOn(value: CharacteristicValue, callback: CharacteristicSetCallback) {
+        callback(null);
+    }
 
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
+    homebridgeStateToArmState(value: any): ArmState | null {
+        switch(value) {
+            case this.platform.Characteristic.SecuritySystemTargetState.STAY_ARM:
+                return ArmState.Home;
+            case this.platform.Characteristic.SecuritySystemTargetState.AWAY_ARM:
+                return ArmState.Armed;
+            case this.platform.Characteristic.SecuritySystemTargetState.NIGHT_ARM:
+                return ArmState.Home;
+            case this.platform.Characteristic.SecuritySystemTargetState.DISARM:
+                return ArmState.Disarmed;
+        }
 
-    this.platform.log.debug('Set Characteristic On ->', value);
+        return null;
+    }
 
-    // you must call the callback function
-    callback(null);
-  }
+    alarmStateToHomebridge(state: AlarmState): any {
+        if(state.Alarm) {
+            return this.platform.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED;
+        } else {
+            switch(state.State) {
+                case ArmState.Home:
+                    return this.platform.Characteristic.SecuritySystemCurrentState.STAY_ARM;
+                case ArmState.Disarmed:
+                    return this.platform.Characteristic.SecuritySystemCurrentState.DISARMED;
+                case ArmState.Armed:
+                    return this.platform.Characteristic.SecuritySystemCurrentState.AWAY_ARM;
+                case ArmState.SOS:
+                    return this.platform.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED;
+            }
+        }
 
-  /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   * 
-   * GET requests should return as fast as possbile. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   * 
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
+        // this should never happen
+        throw "Invalid alarm state encountered: " + JSON.stringify(state);
+    }
 
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
-   */
-  getOn(callback: CharacteristicGetCallback) {
-
-    // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
-
-    this.platform.log.debug('Get Characteristic On ->', isOn);
-
-    // you must call the callback function
-    // the first argument should be null if there were no errors
-    // the second argument should be the value to return
-    callback(null, isOn);
-  }
-
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
-   */
-  setBrightness(value: CharacteristicValue, callback: CharacteristicSetCallback) {
-
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
-
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
-
-    // you must call the callback function
-    callback(null);
-  }
 
 }
