@@ -102,8 +102,7 @@ export class ChuangoH4PlatformAccessory {
 
         this.connection.getCurrentAlarmState().then((state: AlarmState) => {
             const currentValue = this.alarmStateToHomebridge(state);
-
-	    this.service.getCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState).updateValue(currentValue);
+            this.service.getCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState).updateValue(currentValue);
         });
 	
         callback(null);
