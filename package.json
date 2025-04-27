@@ -2,7 +2,7 @@
   "private": false,
   "displayName": "Homebridge Chuango H4 Plugin",
   "name": "homebridge-chuango-h4",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A homebridge plugin for the Chuango H4 home security system.",
   "license": "Apache-2.0",
   "repository": {
